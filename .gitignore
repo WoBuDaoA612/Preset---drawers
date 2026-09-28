@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+node_modules/
+*.png
+*.jpg
+*.gif
+pd-backup-*.json

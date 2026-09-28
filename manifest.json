@@ -6,11 +6,12 @@
     "js": "index.js",
     "css": "style.css",
     "author": "我不到啊",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "homePage": "",
     "auto_update": false,
     "hooks": {
         "activate": "init",
-        "disable": "onDisable"
+        "disable": "onDisable",
+        "clean": "cleanup"
     }
 }

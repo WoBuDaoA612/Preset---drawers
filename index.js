@@ -2587,3 +2587,24 @@ export function onDisable() {
     entryEditorEl = null;
     entryEditorCtx = null;
 }
+
+/**
+ * 清理扩展数据（manifest 里的 clean hook）。
+ * 删除或清理扩展时，酒馆会先调这个钩子再写盘、刷新。
+ * 扩展设置存在酒馆全局的 extension_settings 里，删目录清不掉，只能在这里删。
+ */
+export async function cleanup() {
+    const settings = getSettings();
+    for (const item of [...settings.backups]) {
+        void deleteBackupFile(item.file);
+    }
+
+    delete extensionSettings[MODULE_NAME];
+    // 清理是卸载路径，这里抛错会导致后面清不干净，所以只在确实是数组时才动
+    if (Array.isArray(extensionSettings.disabledExtensions)) {
+        extensionSettings.disabledExtensions = extensionSettings.disabledExtensions.filter((name) => name !== MODULE_NAME);
+    }
+
+    const { saveSettings } = SillyTavern.getContext();
+    await saveSettings();
+}
