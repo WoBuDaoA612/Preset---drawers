@@ -1,0 +1,65 @@
+<div id="pd_settings" class="pd-settings" data-page-node-id="2h9z06AOOzuh6BHd0hDnyA">
+    <div class="inline-drawer" data-page-node-id="yrlmV8kILkfkWYErPH3voe">
+        <div class="inline-drawer-toggle inline-drawer-header" data-page-node-id="UcWf6emk8CpS9BSjf9a83H">
+            <b data-page-node-id="3D2OPaUwARDI1moQqDBSxz">预设抽屉</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down" data-page-node-id="V8v5JfI3RxsDR2wU0L3lLt"></div>
+        </div>
+        <div class="inline-drawer-content" data-page-node-id="TPHi5h9eSW93swRjWNxfcg">
+            <label class="checkbox_label" for="pd_enabled" data-page-node-id="WFUGGwJPcNwPvuTVNlnYAh">
+                <input id="pd_enabled" type="checkbox" data-page-node-id="50PmBKFSLHEgHEc5vjClL9" />
+                <span data-page-node-id="ctKJreQyt922kYuOwxj4ZJ">启用预设抽屉</span>
+            </label>
+
+            <label class="checkbox_label" for="pd_custom_picker" data-page-node-id="ZydsLnfW2RuG5RsWRVNeEw">
+                <input id="pd_custom_picker" type="checkbox" data-page-node-id="ChBE3Dr9Rda5e6We6hCrTF" />
+                <span data-page-node-id="DpP7EaY5UGmLwpSRDYu2eP">替换原生预设下拉框样式</span>
+            </label>
+
+            <label class="checkbox_label" for="pd_prompt_groups_enabled">
+                <input id="pd_prompt_groups_enabled" type="checkbox" />
+                <span>启用预设提示词条目分组</span>
+            </label>
+
+            <label class="checkbox_label" for="pd_backup_enabled">
+                <input id="pd_backup_enabled" type="checkbox" />
+                <span>保存条目前自动备份预设</span>
+            </label>
+
+            <hr  data-page-node-id="qgnYlB7MGdRdI1IoAfoWQS"/>
+
+            <div class="pd-settings-label">预设提示词条目分组管理</div>
+            <div id="pd_prompt_groups"></div>
+            <div id="pd_prompt_group_add" class="menu_button">新建分组</div>
+
+            <hr />
+
+            <div class="pd-settings-label" data-page-node-id="XDN2FLe3x18tijiYukgjad">预设抽屉管理</div>
+            <div class="flex-container pd-row-gap" data-page-node-id="mWpyGJ5v5KkNAWR22Uw47f">
+                <select id="pd_manager_api" class="text_pole flex1" data-page-node-id="jvsoNlJNdNRxpfHIedfgIq">
+                    <option value="openai" data-page-node-id="ybZHKgPomnSPnqWrYvJxGz">Chat Completion</option>
+                    <option value="textgenerationwebui" data-page-node-id="LarxopYU4xCwZL3HC2zsHH">Text Completion</option>
+                    <option value="kobold" data-page-node-id="Qx8ZysOEEkkZDAYd99csZt">KoboldAI</option>
+                    <option value="novel" data-page-node-id="EPOxQ1n22cudna7BzSDtFi">NovelAI</option>
+                </select>
+                <div id="pd_open_manager" class="menu_button" data-page-node-id="POJENZCbmOEdkAA1C55UVZ">打开</div>
+            </div>
+
+            <hr  data-page-node-id="hrUNmJEmEUJlRAzx3fwCDG"/>
+
+            <div id="pd_reset" class="menu_button pd-danger" data-page-node-id="uDCJOnITjl8j6y9XAbDV4M">清空所有抽屉数据</div>
+            <small class="pd-settings-hint" data-page-node-id="rAkkmnO7D6WKqIjFOhpNGd">
+                抽屉归属仅保存在本扩展设置里，不写进预设文件
+            </small>
+
+            <hr />
+
+            <div class="inline-drawer wide100p" data-page-node-id="pd-backup-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header" data-page-node-id="pd-backup-toggle">
+                    <b data-page-node-id="pd-backup-title">备份</b>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-up up" data-page-node-id="pd-backup-icon"></div>
+                </div>
+                <div class="inline-drawer-content" id="pd_backups" style="display:none;" data-page-node-id="pd-backups"></div>
+            </div>
+        </div>
+    </div>
+</div>

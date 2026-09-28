@@ -1,0 +1,16 @@
+{
+    "display_name": "预设抽屉",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "我不到啊",
+    "version": "1.0.0",
+    "homePage": "",
+    "auto_update": false,
+    "hooks": {
+        "activate": "init",
+        "disable": "onDisable"
+    }
+}

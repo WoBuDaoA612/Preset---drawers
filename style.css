@@ -1,0 +1,786 @@
+.pd-hidden {
+    display: none !important;
+}
+
+.pd-settings-hint {
+    display: block;
+    opacity: 0.7;
+    margin: 4px 0 8px;
+    line-height: 1.4;
+}
+
+.pd-settings-label {
+    font-weight: 500;
+    margin: 6px 0;
+    opacity: 0.85;
+}
+
+.pd-row-gap {
+    gap: 5px;
+    align-items: center;
+}
+
+.pd-danger {
+    color: var(--SmartThemeQuoteColor, #c0392b);
+}
+
+/* ST 的 .menu_button 是 width: min-content 的 flex 容器。中文没有空格，
+   min-content 就等于一个汉字的宽度，按钮文字会被压成一列竖排。
+   扩展里所有带文字的按钮都显式放开宽度与换行。 */
+#pd_settings .menu_button,
+.pd-panel .menu_button,
+.pd-pm-menu .menu_button,
+.pd-editor .menu_button {
+    width: auto;
+    white-space: nowrap;
+}
+
+/* ---------- 选择器控件 ---------- */
+
+.pd-picker {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    color: var(--SmartThemeBodyColor);
+    background-color: var(--black30a);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    align-self: stretch;
+    overflow: hidden;
+}
+
+.pd-picker:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.pd-picker-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-picker-badge {
+    flex: 0 0 auto;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85em;
+    opacity: 0.75;
+    padding: 0 5px;
+    border-radius: 4px;
+    background-color: var(--white20a);
+}
+
+.pd-picker-badge.pd-empty {
+    display: none;
+}
+
+.pd-picker-caret {
+    flex: 0 0 auto;
+    opacity: 0.6;
+    font-size: 0.8em;
+}
+
+/* ---------- 面板 ---------- */
+
+.pd-panel {
+    position: absolute;
+    z-index: 100000;
+    display: none;
+    flex-direction: column;
+    width: 360px;
+    max-width: calc(100vw - 16px);
+    max-height: 60vh;
+    background-color: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px var(--black70a);
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength) * 2));
+    overflow: hidden;
+}
+
+.pd-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.pd-search {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pd-icon-button {
+    flex: 0 0 auto;
+    cursor: pointer;
+    padding: 4px 7px;
+    border-radius: 5px;
+    opacity: 0.75;
+}
+
+.pd-icon-button:hover {
+    opacity: 1;
+    background-color: var(--white20a);
+}
+
+.pd-panel.pd-managing .pd-manage {
+    opacity: 1;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.pd-panel-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px 6px 8px;
+}
+
+.pd-empty-state {
+    opacity: 0.6;
+    text-align: center;
+    padding: 18px 8px;
+}
+
+.pd-panel-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.pd-foot-button {
+    flex: 0 0 auto;
+    cursor: pointer;
+    padding: 3px 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    white-space: nowrap;
+}
+
+.pd-foot-button:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.pd-hint {
+    font-size: 0.8em;
+    opacity: 0.55;
+    line-height: 1.3;
+}
+
+/* ---------- 分组 ---------- */
+
+.pd-section {
+    margin-bottom: 6px;
+}
+
+.pd-section-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 6px;
+    font-size: 0.85em;
+    opacity: 0.8;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    margin-bottom: 4px;
+}
+
+.pd-section-title {
+    flex: 1 1 auto;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.pd-drawer-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    padding: 2px 6px;
+    font-size: 0.95em;
+}
+
+.pd-section-count {
+    flex: 0 0 auto;
+    font-size: 0.9em;
+    opacity: 0.6;
+}
+
+.pd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 26px;
+    padding: 3px;
+    border: 1px dashed transparent;
+    border-radius: 6px;
+}
+
+.pd-list.pd-drop-active {
+    border-color: var(--SmartThemeQuoteColor);
+    background-color: var(--white20a);
+}
+
+.pd-section.pd-drop-active {
+    outline: 1px solid var(--SmartThemeQuoteColor);
+    border-radius: 6px;
+    background-color: var(--white20a);
+}
+
+.pd-fold {
+    flex: 0 0 auto;
+    cursor: pointer;
+    padding: 0 3px;
+    opacity: 0.6;
+}
+
+.pd-fold:hover {
+    opacity: 1;
+}
+
+.pd-fold i {
+    transition: transform 0.15s ease;
+}
+
+.pd-section.pd-collapsed .pd-fold i {
+    transform: rotate(-90deg);
+}
+
+.pd-section.pd-collapsed .pd-list {
+    display: none;
+}
+
+.pd-list-placeholder {
+    font-size: 0.8em;
+    opacity: 0.4;
+    padding: 3px 6px;
+}
+
+/* ---------- 预设条目 ---------- */
+
+.pd-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: var(--black30a);
+}
+
+.pd-chip:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.pd-chip.pd-current {
+    border-color: var(--SmartThemeQuoteColor);
+    box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor);
+}
+
+.pd-chip.pd-dragging {
+    opacity: 0.4;
+}
+
+.pd-chip.pd-drop-before {
+    box-shadow: inset 0 2px 0 var(--SmartThemeQuoteColor);
+}
+
+.pd-chip-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-chip-remove {
+    flex: 0 0 auto;
+    opacity: 0.45;
+    padding: 0 4px;
+    font-size: 1.1em;
+    line-height: 1;
+}
+
+.pd-chip-remove:hover {
+    opacity: 1;
+    color: var(--SmartThemeQuoteColor);
+}
+
+/* ---------- 条目分组（预设条目列表内） ---------- */
+
+#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
+    grid-template-columns: 4fr 80px 45px auto;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.pd-pm-banner {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    margin-bottom: 0.5em;
+    border: 1px dashed var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    font-size: 0.9em;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.pd-pm-banner.pd-pm-solo {
+    border-style: solid;
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.pd-pm-banner-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.pd-pm-solo-toggle {
+    flex: 0 0 auto;
+    padding: 0 5px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.pd-pm-solo-toggle:hover {
+    opacity: 1;
+}
+
+.pd-pm-solo .pd-pm-solo-toggle {
+    opacity: 1;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.pd-pm-hidden {
+    display: none !important;
+}
+
+.pd-pm-member {
+    box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor);
+}
+
+.pd-pm-marker {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 150px;
+    padding: 0 5px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.pd-pm-marker:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.pd-pm-marker-empty {
+    opacity: 0.35;
+}
+
+.pd-pm-marker-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-pm-menu {
+    position: absolute;
+    z-index: 100001;
+    display: none;
+    flex-direction: column;
+    width: 260px;
+    max-height: 50vh;
+    background-color: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px var(--black70a);
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength) * 2));
+    overflow: hidden;
+}
+
+.pd-pm-menu-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.pd-pm-menu-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9em;
+}
+
+.pd-pm-menu-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px 8px;
+}
+
+.pd-pm-menu-row {
+    margin: 3px 0;
+}
+
+.pd-pm-menu-foot {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.pd-pm-new {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pd-pm-menu-clear {
+    margin-top: 6px;
+    padding: 3px 6px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    text-align: center;
+    font-size: 0.85em;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.pd-pm-menu-clear:hover {
+    opacity: 1;
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+/* ---------- 条目分组（设置面板） ---------- */
+
+.pd-group-block {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+
+.pd-group-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 6px;
+    background-color: var(--black30a);
+}
+
+.pd-group-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    height: auto;
+    padding: 2px 6px;
+    font-size: 0.95em;
+}
+
+.pd-group-body {
+    padding: 4px 8px 6px;
+}
+
+.pd-group-block.pd-collapsed .pd-group-body,
+.pd-preset-block.pd-collapsed .pd-preset-body {
+    display: none;
+}
+
+.pd-group-block.pd-collapsed .pd-fold i,
+.pd-preset-block.pd-collapsed .pd-fold i {
+    transform: rotate(-90deg);
+}
+
+.pd-preset-block {
+    margin-top: 6px;
+    padding-left: 8px;
+    border-left: 2px solid var(--SmartThemeBorderColor);
+}
+
+.pd-preset-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 0;
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+.pd-preset-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.pd-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+    user-select: none;
+}
+
+.pd-entry:hover {
+    background-color: var(--white20a);
+}
+
+.pd-entry-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.pd-entry-detach {
+    align-self: center;
+    font-size: 0.95em;
+}
+
+.pd-entry-detach:hover {
+    color: var(--SmartThemeQuoteColor, #c0392b);
+}
+
+/* ---------- 条目编辑弹窗 ---------- */
+
+/* 原生 <dialog>：居中、顶层、Esc、遮罩都由浏览器负责，写法跟酒馆自带的
+   .popup 对齐。display 只在 [open] 时给 —— 作者样式压得住 UA 的
+   dialog:not([open])，在这条上写 display 会让关着的弹窗也显示出来。
+   这里不开 overflow:hidden，好让 select2 下拉能溢出弹窗（酒馆原生弹窗
+   同样是把溢出收在内层 body 上）。 */
+.pd-editor {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    width: 620px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
+    padding: 0;
+    background-color: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px var(--black70a);
+}
+
+.pd-editor[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 模糊做在遮罩上，而不是弹窗自身：后者 fixed + backdrop-filter 这套组合
+   在移动端就是之前显示不全的根源。 */
+.pd-editor::backdrop {
+    background-color: var(--black30a);
+    backdrop-filter: blur(calc(var(--SmartThemeBlurStrength) * 2));
+    -webkit-backdrop-filter: blur(calc(var(--SmartThemeBlurStrength) * 2));
+}
+
+.pd-editor-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.pd-editor-title {
+    flex: 1 1 auto;
+    font-weight: 500;
+}
+
+.pd-editor-body {
+    flex: 1 1 auto;
+    /* 不加 min-height:0，flex 子项的默认最小高度会顶住，窄屏上滚不动 */
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+}
+
+.pd-editor-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.pd-editor-row {
+    display: flex;
+    gap: 8px;
+}
+
+.pd-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pd-editor-field-narrow {
+    flex: 0 0 140px;
+}
+
+.pd-editor-label {
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+/* 触发类型是 select2 下拉（与原生一致，点开才列选项）。
+   面板由 dropdownParent 收进弹窗内，仍用类名兜住层级与宽度。 */
+.pd-select2-dropdown {
+    z-index: 100010;
+}
+
+.pd-editor-content-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+.pd-editor-content-head > span:first-child {
+    flex: 1 1 auto;
+    font-weight: 500;
+}
+
+/* 酒馆给 .text_pole 开了 field-sizing: content，正文会长到内容那么高，
+   这里固定住高度自己滚，长条目才不会把弹窗撑爆。 */
+.pd-editor-content {
+    field-sizing: fixed;
+    height: 260px;
+    min-height: 120px;
+    max-height: 45vh;
+    max-height: 45dvh;
+    resize: vertical;
+    overflow-y: auto;
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.9em;
+    line-height: 1.35;
+}
+
+.pd-editor-content[readonly] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 正文可编辑时这行是空的，但 .pd-settings-hint 自带 4px/8px 外边距，
+   留着会在正文下面压出一条没用的空白 */
+.pd-editor-lock-hint:empty {
+    display: none;
+}
+
+.pd-editor-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+/* ---------- 备份清单（按预设分组，位于设置面板最下） ---------- */
+
+.pd-backup-group {
+    margin-bottom: 6px;
+}
+
+.pd-backup-group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+    user-select: none;
+}
+
+.pd-backup-group-head:hover {
+    background-color: var(--white20a);
+}
+
+.pd-backup-preset {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-backup-group-body {
+    padding-left: 18px;
+}
+
+.pd-backup-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    margin-bottom: 4px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    font-size: 0.85em;
+}
+
+.pd-backup-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+    opacity: 0.6;
+}
+
+.pd-backup-download {
+    flex: 0 0 auto;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 窄屏（含手机与 F12 的移动模拟）：字段由两列并排改成竖排，弹窗铺满宽度 */
+@media screen and (max-width: 1000px) {
+    .pd-panel {
+        width: calc(100vw - 16px);
+    }
+
+    .pd-editor {
+        width: calc(100vw - 16px);
+    }
+
+    .pd-editor-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .pd-editor-field-narrow {
+        flex: 1 1 auto;
+    }
+}
