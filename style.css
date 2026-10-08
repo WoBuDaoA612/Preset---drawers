@@ -320,21 +320,22 @@
 
 /* ---------- 条目分组（预设条目列表内） ---------- */
 
-/* 条目行的网格：前三列与酒馆原生一致，第四列放本扩展的分组标记。
-   列宽用 minmax(0, 4fr) 而不是裸 4fr —— 后者的最小值是内容宽度，
-   窄屏下会把整行撑出容器。 */
-#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
+/* 条目行的列定义交给酒馆自己维护，这里不覆盖 grid-template-columns。
+   新版酒馆把拖拽手柄做成独立的第 1 列，并用 grid-column 给名称(2)、控制(3)、
+   词符(4) 显式定位。一旦覆盖列定义，这些 grid-column 仍然生效而列宽对不上，
+   名称会被塞进 80px 的窄列、控制挤进 45px、最宽的那一列空着。
+   本扩展的分组标记不声明 grid-column，由浏览器自动排到最后一列之后。 */
+
+/* 旧版酒馆的行没有独立的手柄列，它靠 :has() 给 li 加定位上下文、再把手柄
+   绝对定位。不支持 :has() 的内核拿不到定位上下文，手柄会失去参照而跑飞。
+   下面这套兜底只在脚本检测到旧版行结构时才生效（给 body 加类）；
+   新版酒馆自己也用 @supports 处理了同样的事，不需要也不应该再插手。 */
+body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
     position: relative;
     padding-left: 20px;
-    grid-template-columns: minmax(0, 4fr) 80px 45px auto;
 }
 
-/* 拖拽手柄必须脱离网格（绝对定位）。
-   酒馆原生靠 :has() 给 li 定位上下文、再把 .drag-handle 设为绝对定位；
-   内核不支持 :has() 的环境（如部分移动端客户端的 WebView）两个前提都不成立，
-   手柄会作为普通网格项占掉第一格，条目名被挤进 80px 的窄列、只剩两三个字。
-   这里不依赖 :has() 地重申一遍，新旧环境都成立。 */
-#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .drag-handle {
+body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .drag-handle {
     position: absolute;
     left: 0;
     top: 0;

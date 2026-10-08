@@ -1231,6 +1231,18 @@ function buildRowMarker(row, groups) {
     return marker;
 }
 
+// 酒馆新版把拖拽手柄做成行内的第 1 个网格列，并在 li 上定义这个自定义属性；
+// 旧版没有它。据此给 body 加类，套用 style.css 里那套旧版兜底。
+function syncPromptRowLayout(row) {
+    if (!row) {
+        return;
+    }
+    const handleColumn = window.getComputedStyle(row)
+        .getPropertyValue('--completion-prompt-manager-handle-column')
+        .trim();
+    document.body.classList.toggle('pd-pm-legacy-rows', handleColumn === '');
+}
+
 function syncPromptGroups() {
     const container = document.getElementById(PROMPT_CONTAINER_ID);
     if (!container) {
@@ -1247,6 +1259,14 @@ function syncPromptGroups() {
     const rows = Array.from(list.querySelectorAll('li[data-pm-identifier]'));
     const pg = getPromptGroups();
     const ready = getSettings().enabled && getSettings().promptGroupsEnabled && rows.length > 0 && pg.groups.length > 0;
+
+    // 行结构检测与分组功能是否启用无关：旧版酒馆靠 :has() 给条目行加定位上下文，
+    // 不支持该选择器的内核拿不到参照，手柄会跑飞。这份兜底只要扩展启用就该生效。
+    if (getSettings().enabled && rows.length > 0) {
+        syncPromptRowLayout(rows[0]);
+    } else {
+        document.body.classList.remove('pd-pm-legacy-rows');
+    }
 
     if (!ready) {
         rows.forEach((row) => row.classList.remove('pd-pm-hidden'));
@@ -2572,6 +2592,7 @@ export function onDisable() {
     if (promptList) {
         removePromptInjections(promptList);
     }
+    document.body.classList.remove('pd-pm-legacy-rows');
     groupMenuAbort?.abort();
     groupMenuAbort = null;
     groupMenuEl?.remove();
