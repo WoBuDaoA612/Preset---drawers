@@ -320,19 +320,33 @@
 
 /* ---------- 条目分组（预设条目列表内） ---------- */
 
-/* 条目行的列定义交给酒馆自己维护，这里不覆盖 grid-template-columns。
-   新版酒馆把拖拽手柄做成独立的第 1 列，并用 grid-column 给名称(2)、控制(3)、
-   词符(4) 显式定位。一旦覆盖列定义，这些 grid-column 仍然生效而列宽对不上，
-   名称会被塞进 80px 的窄列、控制挤进 45px、最宽的那一列空着。
-   本扩展的分组标记不声明 grid-column，由浏览器自动排到最后一列之后。 */
+/* 条目行的列定义：逐字保留酒馆原有的列，只在末尾追加一列放本扩展的分组标记。
+   酒馆用 grid-column 给名称(2)、控制(3)、词符(4) 写死了列号，改动前面任何一列
+   的宽度或数量，它们就会落到错的列上（曾把名称挤进 80px 的窄列）。
+   追加不动前面的列，是安全的。
+   但也不能不追加：酒馆把这几列显式占满了，标记没有可落的列，默认的
+   grid-auto-flow: row 会把它换到第二行。 */
+#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
+    grid-template-columns: var(--completion-prompt-manager-handle-column, 0px) 4fr 80px 45px auto;
+}
 
-/* 旧版酒馆的行没有独立的手柄列，它靠 :has() 给 li 加定位上下文、再把手柄
-   绝对定位。不支持 :has() 的内核拿不到定位上下文，手柄会失去参照而跑飞。
-   下面这套兜底只在脚本检测到旧版行结构时才生效（给 body 加类）；
-   新版酒馆自己也用 @supports 处理了同样的事，不需要也不应该再插手。 */
+/* 旧版酒馆的行没有独立的手柄列（手柄靠 :has() 绝对定位），是 3 列，另写一份。
+   不支持 :has() 的内核拿不到定位上下文，手柄会失去参照而跑飞——这套兜底只在
+   脚本检测到旧版行结构时才生效（给 body 加类）；新版酒馆自己也用 @supports
+   处理了同样的事，不需要也不应该再插手。 */
 body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
     position: relative;
     padding-left: 20px;
+    grid-template-columns: 4fr 80px 45px auto;
+}
+
+/* 分组标记占各自版本末尾追加的那一列 */
+#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .pd-pm-marker {
+    grid-column: 5;
+}
+
+body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .pd-pm-marker {
+    grid-column: 4;
 }
 
 body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .drag-handle {
