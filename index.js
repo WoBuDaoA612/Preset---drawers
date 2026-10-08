@@ -1220,7 +1220,7 @@ function buildRowMarker(row, groups) {
         : '加入分组';
     marker.innerHTML = `
         <i class="fa-solid fa-tag"></i>
-        <span class="pd-pm-marker-text">${escapeHtml(groups.length > 0 ? groups.map((group) => group.name).join(' / ') : '分组')}</span>
+        ${groups.length > 0 ? `<span class="pd-pm-marker-text">${escapeHtml(groups.map((group) => group.name).join(' / '))}</span>` : ''}
     `;
     marker.addEventListener('mousedown', (event) => event.stopPropagation());
     marker.addEventListener('touchstart', (event) => event.stopPropagation());

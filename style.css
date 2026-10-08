@@ -320,8 +320,30 @@
 
 /* ---------- 条目分组（预设条目列表内） ---------- */
 
+/* 条目行的网格：前三列与酒馆原生一致，第四列放本扩展的分组标记。
+   列宽用 minmax(0, 4fr) 而不是裸 4fr —— 后者的最小值是内容宽度，
+   窄屏下会把整行撑出容器。 */
 #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
-    grid-template-columns: 4fr 80px 45px auto;
+    position: relative;
+    padding-left: 20px;
+    grid-template-columns: minmax(0, 4fr) 80px 45px auto;
+}
+
+/* 拖拽手柄必须脱离网格（绝对定位）。
+   酒馆原生靠 :has() 给 li 定位上下文、再把 .drag-handle 设为绝对定位；
+   内核不支持 :has() 的环境（如部分移动端客户端的 WebView）两个前提都不成立，
+   手柄会作为普通网格项占掉第一格，条目名被挤进 80px 的窄列、只剩两三个字。
+   这里不依赖 :has() 地重申一遍，新旧环境都成立。 */
+#completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt > .drag-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #completion_prompt_manager #completion_prompt_manager_list li.pd-pm-banner {
