@@ -417,6 +417,13 @@ body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_lis
     color: var(--SmartThemeQuoteColor);
 }
 
+/* 标记是文字符号，尺寸与选中行为交给这两条管 */
+.pd-pm-marker-star,
+.pd-pm-marker-symbol {
+    line-height: 1;
+    user-select: none;
+}
+
 .pd-pm-menu {
     position: absolute;
     z-index: 100001;

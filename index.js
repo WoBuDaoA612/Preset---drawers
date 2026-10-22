@@ -1339,9 +1339,10 @@ function buildRowMarker(row, groups) {
         : '加入分组';
     // 条目可以同时属于多个分组，行尾只显示其中一个没有意义，也占宽度：
     // 有归属就亮一颗星，具体挂在哪些分组看悬停提示。
+    // 两种状态都用文字符号，不依赖图标字体：☆ 是「点它去分组」的入口。
     marker.innerHTML = groups.length > 0
-        ? '<i class="fa-solid fa-star pd-pm-marker-star"></i>'
-        : '<i class="fa-solid fa-tag"></i>';
+        ? '<span class="pd-pm-marker-star">★</span>'
+        : '<span class="pd-pm-marker-symbol">☆</span>';
     marker.addEventListener('mousedown', (event) => event.stopPropagation());
     marker.addEventListener('touchstart', (event) => event.stopPropagation());
     marker.addEventListener('click', (event) => {
@@ -1378,7 +1379,9 @@ function syncPromptGroups() {
 
     const rows = Array.from(list.querySelectorAll('li[data-pm-identifier]'));
     const pg = getPromptGroups();
-    const ready = getSettings().enabled && getSettings().promptGroupsEnabled && rows.length > 0 && pg.groups.length > 0;
+    // 不再要求「已经有分组」才注入标记：标记本身是建分组的入口，
+    // 分组列表空着（新装、或清理过数据）时整列标记一起消失，看着就像坏了。
+    const ready = getSettings().enabled && getSettings().promptGroupsEnabled && rows.length > 0;
 
     // 行结构检测与分组功能是否启用无关：旧版酒馆靠 :has() 给条目行加定位上下文，
     // 不支持该选择器的内核拿不到参照，手柄会跑飞。这份兜底只要扩展启用就该生效。
