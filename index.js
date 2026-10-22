@@ -85,6 +85,7 @@ let dragPayload = null;
 let suppressClick = false;
 let renderQueued = false;
 const collapsedSections = new Set();
+let isCleaningUp = false;
 
 const PROMPT_CONTAINER_ID = 'completion_prompt_manager';
 const PROMPT_LIST_ID = 'completion_prompt_manager_list';
@@ -105,6 +106,11 @@ let soloGroupId = null;
  * ------------------------------------------------------------------ */
 
 function getSettings() {
+    // 清理期间不要再往 extension_settings 里写：刚删掉的键会被重新建出来，
+    // 核心随后那次写盘就会把它存回文件，清理等于白做。
+    if (isCleaningUp) {
+        return structuredClone(defaultSettings);
+    }
     if (!extensionSettings[MODULE_NAME]) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
@@ -141,7 +147,7 @@ function getSettings() {
 function getApiConfig(apiId) {
     const settings = getSettings();
     if (!settings.apiConfig[apiId] || typeof settings.apiConfig[apiId] !== 'object') {
-        settings.apiConfig[apiId] = { drawers: [], assign: {}, order: {} };
+        settings.apiConfig[apiId] = { drawers: [], assign: {}, order: {}, unclassifiedIndex: 0 };
     }
     const cfg = settings.apiConfig[apiId];
     if (!Array.isArray(cfg.drawers)) {
@@ -156,6 +162,11 @@ function getApiConfig(apiId) {
     if (!cfg.order || typeof cfg.order !== 'object' || Array.isArray(cfg.order)) {
         cfg.order = {};
     }
+    // 「未分类」排在第几个抽屉之后：0 是最上面，drawers.length 是最下面
+    const index = Number(cfg.unclassifiedIndex);
+    cfg.unclassifiedIndex = Number.isFinite(index)
+        ? Math.min(Math.max(0, Math.trunc(index)), cfg.drawers.length)
+        : 0;
     return cfg;
 }
 
@@ -374,7 +385,13 @@ function deleteOrder(cfg, drawerId) {
 
 function deleteDrawer(apiId, drawerId) {
     const cfg = getApiConfig(apiId);
+    const removedAt = cfg.drawers.findIndex((drawer) => drawer.id === drawerId);
     cfg.drawers = cfg.drawers.filter((drawer) => drawer.id !== drawerId);
+    // 删掉的抽屉若在「未分类」上方，它后面的抽屉整体前移一位，未分类跟着收
+    if (removedAt >= 0 && removedAt < cfg.unclassifiedIndex) {
+        cfg.unclassifiedIndex -= 1;
+    }
+    cfg.unclassifiedIndex = Math.min(cfg.unclassifiedIndex, cfg.drawers.length);
     deleteOrder(cfg, drawerId);
     for (const [presetName, ids] of Object.entries(cfg.assign)) {
         const next = normalizeIds(ids).filter((id) => id !== drawerId);
@@ -396,6 +413,24 @@ function moveDrawer(apiId, drawerId, delta) {
     }
     const [moved] = cfg.drawers.splice(from, 1);
     cfg.drawers.splice(to, 0, moved);
+    // 抽屉跨过「未分类」时让它让位，摆好的位置不会被打乱
+    const index = cfg.unclassifiedIndex;
+    if (from < index && to >= index) {
+        cfg.unclassifiedIndex = index - 1;
+    } else if (from >= index && to < index) {
+        cfg.unclassifiedIndex = index + 1;
+    }
+    saveSettingsDebounced();
+}
+
+// 「未分类」不是抽屉（没有归属关系、没有顺序表），只记它在抽屉序列里的位置。
+function moveUnclassified(apiId, delta) {
+    const cfg = getApiConfig(apiId);
+    const to = cfg.unclassifiedIndex + delta;
+    if (to < 0 || to > cfg.drawers.length) {
+        return;
+    }
+    cfg.unclassifiedIndex = to;
     saveSettingsDebounced();
 }
 
@@ -602,7 +637,6 @@ function buildPicker(apiId) {
     picker.setAttribute('role', 'button');
     picker.innerHTML = `
         <span class="pd-picker-text"></span>
-        <span class="pd-picker-badge"></span>
         <i class="pd-picker-caret fa-solid fa-caret-down"></i>
     `;
     picker.addEventListener('click', () => {
@@ -682,13 +716,15 @@ function syncApi(apiId) {
     refreshPickerLabel(apiId);
 }
 
-function updatePickerBadge(apiId) {
+function updatePickerLabel(apiId) {
     const select = findSelect(apiId);
     if (!select) {
         return;
     }
     const row = select.parentElement;
     const state = collectState(apiId);
+    // 抽屉名不进控件本身：一个预设可以属于多个抽屉，控件里只放得下第一个，
+    // 反而容易让人以为它只在一个抽屉里。全部归属放在悬停提示里。
     const drawerNames = normalizeIds(state.cfg.assign[state.current.name])
         .map((id) => state.cfg.drawers.find((drawer) => drawer.id === id)?.name)
         .filter(Boolean);
@@ -696,9 +732,6 @@ function updatePickerBadge(apiId) {
     const picker = row?.querySelector(`.pd-picker[data-pd-api="${apiId}"]`);
     if (picker) {
         picker.querySelector('.pd-picker-text').textContent = state.current.name;
-        const badge = picker.querySelector('.pd-picker-badge');
-        badge.textContent = drawerNames.length > 0 ? drawerNames[0] : '';
-        badge.classList.toggle('pd-empty', drawerNames.length === 0);
         picker.title = drawerNames.length > 0
             ? `${state.current.name} · ${drawerNames.join(' / ')}`
             : state.current.name;
@@ -706,7 +739,7 @@ function updatePickerBadge(apiId) {
 }
 
 function refreshPickerLabel(apiId) {
-    updatePickerBadge(apiId);
+    updatePickerLabel(apiId);
 
     if (openApiId === apiId) {
         renderPanel();
@@ -717,6 +750,55 @@ function syncAll() {
     for (const apiId of API_IDS) {
         syncApi(apiId);
     }
+}
+
+/* ------------------------------------------------------------------ *
+ * 拖拽到面板边缘时自动滚动
+ *
+ * 滚动条在内层 .pd-panel-body 上，面板是浮动定位的，浏览器默认的边缘滚动
+ * 在这里不生效；拖到视野外的抽屉时只能先丢到中间再挪一次。
+ * ------------------------------------------------------------------ */
+
+const DRAG_SCROLL_EDGE = 28;
+const DRAG_SCROLL_MAX_STEP = 16;
+
+let dragScrollFrame = null;
+let dragPointerY = null;
+
+function stopDragAutoScroll() {
+    if (dragScrollFrame !== null) {
+        cancelAnimationFrame(dragScrollFrame);
+        dragScrollFrame = null;
+    }
+    dragPointerY = null;
+}
+
+function dragScrollStep() {
+    const scroller = panelEl?.querySelector('.pd-panel-body');
+    if (!scroller || dragPointerY === null || !dragPayload) {
+        dragScrollFrame = null;
+        return;
+    }
+    const rect = scroller.getBoundingClientRect();
+    let delta = 0;
+    if (dragPointerY < rect.top + DRAG_SCROLL_EDGE) {
+        const ratio = Math.min(1, (rect.top + DRAG_SCROLL_EDGE - dragPointerY) / DRAG_SCROLL_EDGE);
+        delta = -Math.max(1, Math.round(ratio * DRAG_SCROLL_MAX_STEP));
+    } else if (dragPointerY > rect.bottom - DRAG_SCROLL_EDGE) {
+        const ratio = Math.min(1, (dragPointerY - (rect.bottom - DRAG_SCROLL_EDGE)) / DRAG_SCROLL_EDGE);
+        delta = Math.max(1, Math.round(ratio * DRAG_SCROLL_MAX_STEP));
+    }
+    if (delta !== 0) {
+        scroller.scrollTop += delta;
+    }
+    dragScrollFrame = requestAnimationFrame(dragScrollStep);
+}
+
+function startDragAutoScroll() {
+    if (dragScrollFrame !== null) {
+        return;
+    }
+    dragScrollFrame = requestAnimationFrame(dragScrollStep);
 }
 
 /* ------------------------------------------------------------------ *
@@ -747,6 +829,18 @@ function ensurePanel() {
     const stopNavbarAutoclose = (event) => event.stopPropagation();
     panelEl.addEventListener('mousedown', stopNavbarAutoclose);
     panelEl.addEventListener('touchstart', stopNavbarAutoclose);
+
+    // 拖拽时指针停在上下边缘，面板自己往下滚；离开面板就停。
+    // 必须用捕获阶段：条目自己的 dragover 会 stopPropagation，冒泡到不了面板。
+    panelEl.addEventListener('dragover', (event) => {
+        dragPointerY = event.clientY;
+        startDragAutoScroll();
+    }, true);
+    panelEl.addEventListener('dragleave', (event) => {
+        if (!panelEl.contains(event.relatedTarget)) {
+            dragPointerY = null;
+        }
+    }, true);
 
     const search = panelEl.querySelector('.pd-search');
     search.addEventListener('input', () => {
@@ -837,6 +931,7 @@ function openPanel(apiId) {
 
 function closePanel() {
     commitPendingDrawerName();
+    stopDragAutoScroll();
 
     if (panelEl) {
         panelEl.style.display = 'none';
@@ -862,20 +957,28 @@ function renderPanel() {
     }
 
     const unclassified = state.unclassified.filter((preset) => matches(preset.name));
-    if (unclassified.length > 0) {
-        body.appendChild(buildSection({
-            apiId,
-            drawerId: UNCLASSIFIED,
-            title: '未分类',
-            count: state.unclassified.length,
-            presets: unclassified,
-            currentName: state.current.name,
-            removable: false,
-            collapsed: query === '' && collapsedSections.has(`${apiId}::${UNCLASSIFIED}`),
-        }));
-    }
 
-    for (const drawer of state.cfg.drawers) {
+    // 按「未分类」所在的下标把两串并成一条序列渲染：位置 0 是抽屉之前，
+    // drawers.length 是全部抽屉之后。
+    for (let position = 0; position <= state.cfg.drawers.length; position += 1) {
+        if (position === state.cfg.unclassifiedIndex && unclassified.length > 0) {
+            body.appendChild(buildSection({
+                apiId,
+                drawerId: UNCLASSIFIED,
+                title: '未分类',
+                count: state.unclassified.length,
+                presets: unclassified,
+                currentName: state.current.name,
+                removable: false,
+                movable: true,
+                collapsed: query === '' && collapsedSections.has(`${apiId}::${UNCLASSIFIED}`),
+            }));
+        }
+
+        const drawer = state.cfg.drawers[position];
+        if (!drawer) {
+            continue;
+        }
         const inner = state.byDrawer.get(drawer.id) ?? [];
         const nameMatches = matches(drawer.name);
         const filtered = inner.filter((preset) => matches(preset.name));
@@ -914,7 +1017,7 @@ function commitDrawerNameInput(input) {
     renameDrawer(apiId, drawerId, next);
     const stillExists = getApiConfig(apiId).drawers.some((drawer) => drawer.id === drawerId);
     if (stillExists) {
-        updatePickerBadge(apiId);
+        updatePickerLabel(apiId);
     } else {
         refreshPickerLabel(apiId);
     }
@@ -924,7 +1027,7 @@ function commitPendingDrawerName() {
     panelEl?.querySelectorAll('.pd-drawer-name').forEach((input) => commitDrawerNameInput(input));
 }
 
-function buildSection({ apiId, drawerId, title, count, presets, currentName, removable, collapsed }) {
+function buildSection({ apiId, drawerId, title, count, presets, currentName, removable, movable, collapsed }) {
     const section = document.createElement('div');
     section.className = 'pd-section';
     section.classList.toggle('pd-collapsed', collapsed);
@@ -933,14 +1036,21 @@ function buildSection({ apiId, drawerId, title, count, presets, currentName, rem
     const header = document.createElement('div');
     header.className = 'pd-section-head';
 
-    if (manageMode && removable) {
+    if (manageMode && (removable || movable)) {
+        // 抽屉：可改名、可删；「未分类」只有位置能挪，名字与归属都不是它能改的
+        const nameField = removable
+            ? `<input class="pd-drawer-name text_pole" data-pd-api="${escapeHtml(apiId)}" data-pd-drawer="${escapeHtml(drawerId)}" value="${escapeHtml(title)}" />`
+            : `<span class="pd-section-title">${escapeHtml(title)}</span>`;
+        const removeField = removable
+            ? '<div class="pd-icon-button pd-remove-drawer" title="删除抽屉"><i class="fa-solid fa-trash-can"></i></div>'
+            : '';
         header.innerHTML = `
             <div class="pd-fold" title="折叠 / 展开"><i class="fa-solid fa-caret-down"></i></div>
-            <input class="pd-drawer-name text_pole" data-pd-api="${escapeHtml(apiId)}" data-pd-drawer="${escapeHtml(drawerId)}" value="${escapeHtml(title)}" />
+            ${nameField}
             <span class="pd-section-count">${count}</span>
             <div class="pd-icon-button pd-move-up" title="上移"><i class="fa-solid fa-arrow-up"></i></div>
             <div class="pd-icon-button pd-move-down" title="下移"><i class="fa-solid fa-arrow-down"></i></div>
-            <div class="pd-icon-button pd-remove-drawer" title="删除抽屉"><i class="fa-solid fa-trash-can"></i></div>
+            ${removeField}
         `;
     } else {
         header.innerHTML = `
@@ -978,11 +1088,19 @@ function buildSection({ apiId, drawerId, title, count, presets, currentName, rem
         });
     }
     header.querySelector('.pd-move-up')?.addEventListener('click', () => {
-        moveDrawer(apiId, drawerId, -1);
+        if (drawerId === UNCLASSIFIED) {
+            moveUnclassified(apiId, -1);
+        } else {
+            moveDrawer(apiId, drawerId, -1);
+        }
         renderPanel();
     });
     header.querySelector('.pd-move-down')?.addEventListener('click', () => {
-        moveDrawer(apiId, drawerId, 1);
+        if (drawerId === UNCLASSIFIED) {
+            moveUnclassified(apiId, 1);
+        } else {
+            moveDrawer(apiId, drawerId, 1);
+        }
         renderPanel();
     });
     header.querySelector('.pd-remove-drawer')?.addEventListener('click', () => {
@@ -1097,6 +1215,7 @@ function buildChip({ apiId, drawerId, preset, currentName, removable }) {
 
     chip.addEventListener('dragend', () => {
         dragPayload = null;
+        stopDragAutoScroll();
         chip.classList.remove('pd-dragging');
         document.querySelectorAll('.pd-drop-active').forEach((element) => element.classList.remove('pd-drop-active'));
         setTimeout(() => {
@@ -1218,10 +1337,11 @@ function buildRowMarker(row, groups) {
     marker.title = groups.length > 0
         ? groups.map((group) => group.name).join(' / ')
         : '加入分组';
-    marker.innerHTML = `
-        <i class="fa-solid fa-tag"></i>
-        ${groups.length > 0 ? `<span class="pd-pm-marker-text">${escapeHtml(groups.map((group) => group.name).join(' / '))}</span>` : ''}
-    `;
+    // 条目可以同时属于多个分组，行尾只显示其中一个没有意义，也占宽度：
+    // 有归属就亮一颗星，具体挂在哪些分组看悬停提示。
+    marker.innerHTML = groups.length > 0
+        ? '<i class="fa-solid fa-star pd-pm-marker-star"></i>'
+        : '<i class="fa-solid fa-tag"></i>';
     marker.addEventListener('mousedown', (event) => event.stopPropagation());
     marker.addEventListener('touchstart', (event) => event.stopPropagation());
     marker.addEventListener('click', (event) => {
@@ -2615,17 +2735,41 @@ export function onDisable() {
  * 扩展设置存在酒馆全局的 extension_settings 里，删目录清不掉，只能在这里删。
  */
 export async function cleanup() {
-    const settings = getSettings();
-    for (const item of [...settings.backups]) {
-        void deleteBackupFile(item.file);
+    // 这个钩子一个字都不能抛：酒馆删扩展时是先跑钩子、再删目录，
+    // 钩子里抛出的异常会顶掉后面的删除步骤，用户看到的就是
+    // 「勾了『同时清理扩展数据』，扩展反而删不掉」。所以每一步各自兜住。
+    isCleaningUp = true;
+
+    try {
+        onDisable();
+    } catch (error) {
+        console.warn(`${TAG} 清理界面失败`, error);
     }
 
-    delete extensionSettings[MODULE_NAME];
-    // 清理是卸载路径，这里抛错会导致后面清不干净，所以只在确实是数组时才动
-    if (Array.isArray(extensionSettings.disabledExtensions)) {
-        extensionSettings.disabledExtensions = extensionSettings.disabledExtensions.filter((name) => name !== MODULE_NAME);
+    try {
+        const backups = Array.isArray(extensionSettings[MODULE_NAME]?.backups)
+            ? [...extensionSettings[MODULE_NAME].backups]
+            : [];
+        // 备份文件在 user/files 里，删扩展目录不会带走它们。整体加个上限：
+        // 酒馆等钩子只等 5 秒，卡住一个请求不该把整次清理拖死。
+        await Promise.race([
+            Promise.allSettled(backups.map((item) => deleteBackupFile(item.file))),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
+    } catch (error) {
+        console.warn(`${TAG} 清理备份文件失败`, error);
     }
 
-    const { saveSettings } = SillyTavern.getContext();
-    await saveSettings();
+    try {
+        delete extensionSettings[MODULE_NAME];
+        // 清理是卸载路径，这里抛错会导致后面清不干净，所以只在确实是数组时才动
+        if (Array.isArray(extensionSettings.disabledExtensions)) {
+            extensionSettings.disabledExtensions = extensionSettings.disabledExtensions.filter((name) => name !== MODULE_NAME);
+        }
+        // 用 context 里确实存在的那个。saveSettings 在部分版本里没暴露，
+        // 取不到就会抛错；核心在钩子返回后还会再存一次，这里只是先落一次。
+        saveSettingsDebounced();
+    } catch (error) {
+        console.warn(`${TAG} 清理扩展设置失败`, error);
+    }
 }

@@ -65,23 +65,6 @@
     white-space: nowrap;
 }
 
-.pd-picker-badge {
-    flex: 0 0 auto;
-    max-width: 40%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.85em;
-    opacity: 0.75;
-    padding: 0 5px;
-    border-radius: 4px;
-    background-color: var(--white20a);
-}
-
-.pd-picker-badge.pd-empty {
-    display: none;
-}
-
 .pd-picker-caret {
     flex: 0 0 auto;
     opacity: 0.6;
@@ -414,8 +397,6 @@ body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_lis
 .pd-pm-marker {
     display: flex;
     align-items: center;
-    gap: 3px;
-    max-width: 150px;
     padding: 0 5px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 4px;
@@ -432,10 +413,8 @@ body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_lis
     opacity: 0.35;
 }
 
-.pd-pm-marker-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.pd-pm-marker-star {
+    color: var(--SmartThemeQuoteColor);
 }
 
 .pd-pm-menu {
