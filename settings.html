@@ -15,6 +15,11 @@
                 <span data-page-node-id="DpP7EaY5UGmLwpSRDYu2eP">替换原生预设下拉框样式</span>
             </label>
 
+            <label class="checkbox_label" for="pd_drawers_expanded">
+                <input id="pd_drawers_expanded" type="checkbox" />
+                <span>打开面板时展开所有抽屉</span>
+            </label>
+
             <label class="checkbox_label" for="pd_prompt_groups_enabled">
                 <input id="pd_prompt_groups_enabled" type="checkbox" />
                 <span>启用预设提示词条目分组</span>
@@ -26,6 +31,19 @@
             </label>
 
             <hr  data-page-node-id="qgnYlB7MGdRdI1IoAfoWQS"/>
+
+            <div class="pd-settings-label">条目显示顺序</div>
+            <label class="checkbox_label" for="pd_display_order_enabled">
+                <input id="pd_display_order_enabled" type="checkbox" />
+                <span>启用自定义条目显示顺序</span>
+            </label>
+            <div class="flex-container pd-row-gap">
+                <select id="pd_display_order_scheme" class="text_pole flex1"></select>
+                <div id="pd_display_order_add" class="menu_button">新建</div>
+                <div id="pd_display_order_rename" class="menu_button">重命名</div>
+                <div id="pd_display_order_remove" class="menu_button pd-danger">删除</div>
+            </div>
+            <small class="pd-settings-hint">请勿在未开启本设置的情况下拖拽提示词条目，否则会导致乱序</small>
 
             <div class="pd-settings-label">预设提示词条目分组管理</div>
             <div id="pd_prompt_groups"></div>

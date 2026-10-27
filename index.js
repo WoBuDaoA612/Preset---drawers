@@ -69,11 +69,13 @@ const UNCLASSIFIED = '__unclassified__';
 const defaultSettings = Object.freeze({
     enabled: true,
     useCustomPicker: true,
+    drawersExpanded: true,
     promptGroupsEnabled: true,
     backupBeforeSave: true,
     backups: [],
     apiConfig: {},
     promptGroups: { groups: [], assign: {} },
+    displayOrder: { enabled: false, schemes: [], activeByPreset: {} },
 });
 
 let panelEl = null;
@@ -89,6 +91,13 @@ let isCleaningUp = false;
 
 const PROMPT_CONTAINER_ID = 'completion_prompt_manager';
 const PROMPT_LIST_ID = 'completion_prompt_manager_list';
+const PROMPT_LIST_HEAD_CLASS = 'completion_prompt_manager_list_head';
+const PROMPT_LIST_SEPARATOR_CLASS = 'completion_prompt_manager_list_separator';
+
+const ORDER_DRAG_THRESHOLD = 6;
+const ORDER_LONG_PRESS_MS = 400;
+const ORDER_SCROLL_EDGE = 36;
+const ORDER_SCROLL_STEP = 14;
 
 let promptObserver = null;
 let promptSyncQueued = false;
@@ -100,6 +109,13 @@ const collapsedSettingGroups = new Set();
 const collapsedSettingPresets = new Set();
 const collapsedBackupGroups = new Set();
 let soloGroupId = null;
+
+let orderAbort = null;
+let orderPress = null;
+let orderPressTimer = null;
+let orderDrag = null;
+let orderDragFrame = null;
+let orderSuppressClickUntil = 0;
 
 /* ------------------------------------------------------------------ *
  * 设置读写
@@ -141,6 +157,30 @@ function getSettings() {
     }
     settings.backups = settings.backups
         .filter((item) => item && typeof item === 'object' && typeof item.file === 'string' && item.file);
+    if (!settings.displayOrder || typeof settings.displayOrder !== 'object' || Array.isArray(settings.displayOrder)) {
+        settings.displayOrder = structuredClone(defaultSettings.displayOrder);
+    }
+    const displayOrder = settings.displayOrder;
+    displayOrder.enabled = Boolean(displayOrder.enabled);
+    if (!Array.isArray(displayOrder.schemes)) {
+        displayOrder.schemes = [];
+    }
+    displayOrder.schemes = displayOrder.schemes
+        .filter((scheme) => scheme
+            && typeof scheme === 'object'
+            && typeof scheme.id === 'string'
+            && typeof scheme.preset === 'string')
+        .map((scheme) => ({
+            id: scheme.id,
+            name: String(scheme.name ?? ''),
+            preset: scheme.preset,
+            order: normalizeIds(scheme.order),
+        }));
+    if (!displayOrder.activeByPreset
+        || typeof displayOrder.activeByPreset !== 'object'
+        || Array.isArray(displayOrder.activeByPreset)) {
+        displayOrder.activeByPreset = {};
+    }
     return settings;
 }
 
@@ -888,6 +928,21 @@ function ensurePanel() {
     return panelEl;
 }
 
+function resetDrawerFolds(apiId) {
+    for (const key of [...collapsedSections]) {
+        if (key.startsWith(`${apiId}::`)) {
+            collapsedSections.delete(key);
+        }
+    }
+    if (getSettings().drawersExpanded) {
+        return;
+    }
+    for (const drawer of getApiConfig(apiId).drawers) {
+        collapsedSections.add(`${apiId}::${drawer.id}`);
+    }
+    collapsedSections.add(`${apiId}::${UNCLASSIFIED}`);
+}
+
 function openPanel(apiId) {
     if (!API_IDS.includes(apiId)) {
         return;
@@ -901,6 +956,7 @@ function openPanel(apiId) {
     openApiId = apiId;
     searchTerm = '';
     manageMode = false;
+    resetDrawerFolds(apiId);
     panel.classList.remove('pd-managing');
     panel.querySelector('.pd-search').value = '';
 
@@ -1393,6 +1449,7 @@ function syncPromptGroups() {
 
     if (!ready) {
         rows.forEach((row) => row.classList.remove('pd-pm-hidden'));
+        syncDisplayOrderUi(list);
         promptObserver?.observe(container, { childList: true, subtree: true });
         return;
     }
@@ -1444,6 +1501,7 @@ function syncPromptGroups() {
         });
     }
 
+    syncDisplayOrderUi(list);
     promptObserver?.observe(container, { childList: true, subtree: true });
 }
 
@@ -1851,6 +1909,540 @@ function mountPromptGroups() {
         syncPromptGroups();
     });
     renderPromptGroupSettings();
+}
+
+function getDisplayOrder() {
+    return getSettings().displayOrder;
+}
+
+function getPromptList() {
+    const container = document.getElementById(PROMPT_CONTAINER_ID);
+    return container ? container.querySelector(`#${PROMPT_LIST_ID}`) : null;
+}
+
+function getCurrentPromptPresetName() {
+    return getAdapter(PROMPT_PRESET_API).current().name;
+}
+
+function isDisplayOrderActive() {
+    return getSettings().enabled && getDisplayOrder().enabled;
+}
+
+function getActiveScheme(presetName) {
+    const cfg = getDisplayOrder();
+    const own = cfg.schemes.filter((scheme) => scheme.preset === presetName);
+    if (own.length === 0) {
+        return null;
+    }
+    const id = cfg.activeByPreset[presetName];
+    return own.find((scheme) => scheme.id === id) ?? own[0];
+}
+
+function nextDisplaySchemeName(presetName) {
+    const used = getDisplayOrder().schemes
+        .filter((scheme) => scheme.preset === presetName)
+        .map((scheme) => scheme.name);
+    let index = 1;
+    while (used.includes(`方案 ${index}`)) {
+        index += 1;
+    }
+    return `方案 ${index}`;
+}
+
+function reconcileOrder(order, realOrder) {
+    const known = new Set(realOrder);
+    const next = order.filter((identifier) => known.has(identifier));
+    for (const identifier of realOrder) {
+        if (!next.includes(identifier)) {
+            next.push(identifier);
+        }
+    }
+    return next;
+}
+
+function readRealOrder(list) {
+    return Array.from(list.querySelectorAll('li[data-pm-identifier]'))
+        .map((row) => row.dataset.pmIdentifier)
+        .filter(Boolean);
+}
+
+function currentDisplayOrder(list) {
+    const realOrder = readRealOrder(list);
+    const scheme = getActiveScheme(getCurrentPromptPresetName());
+    return scheme ? reconcileOrder(scheme.order, realOrder) : realOrder;
+}
+
+function syncSortable(list, enabled) {
+    const $ = window.jQuery;
+    if (!list || !$ || !$.fn || typeof $.fn.sortable !== 'function') {
+        return;
+    }
+    if (!$(list).data('ui-sortable')) {
+        return;
+    }
+    $(list).sortable(enabled ? 'enable' : 'disable');
+}
+
+function clearDisplayOrder(list) {
+    if (!list) {
+        return;
+    }
+    list.classList.remove('pd-order-on');
+    for (const row of list.children) {
+        row.style.removeProperty('order');
+    }
+    document.body.classList.remove('pd-order-force-flex');
+}
+
+function applyBannerOrder(list, index) {
+    const pg = getPromptGroups();
+    for (const banner of list.querySelectorAll('.pd-pm-banner')) {
+        const groupId = banner.dataset.pdGroup;
+        let first = Number.MAX_SAFE_INTEGER;
+        for (const [identifier, ids] of Object.entries(pg.assign)) {
+            if (!normalizeIds(ids).includes(groupId)) {
+                continue;
+            }
+            const position = index.get(identifier);
+            if (typeof position === 'number' && position < first) {
+                first = position;
+            }
+        }
+        banner.style.order = String(first === Number.MAX_SAFE_INTEGER ? 2 : 2 + first - 0.5);
+    }
+}
+
+function resolveListNeedsFlex(list) {
+    if (list.dataset.pdBaseDisplay) {
+        return list.dataset.pdBaseDisplay === '1';
+    }
+    const wasOn = list.classList.contains('pd-order-on');
+    list.classList.remove('pd-order-on');
+    const display = window.getComputedStyle(list).display;
+    if (wasOn) {
+        list.classList.add('pd-order-on');
+    }
+    if (display === 'none') {
+        return false;
+    }
+    const needsFlex = /flex|grid/.test(display) ? '0' : '1';
+    list.dataset.pdBaseDisplay = needsFlex;
+    return needsFlex === '1';
+}
+
+function applyDisplayOrder(list, order) {
+    const needsFlex = resolveListNeedsFlex(list);
+    const index = new Map(order.map((identifier, position) => [identifier, position]));
+    list.classList.add('pd-order-on');
+    document.body.classList.toggle('pd-order-force-flex', needsFlex);
+    for (const row of list.children) {
+        if (row.classList.contains('pd-pm-banner')) {
+            continue;
+        }
+        if (row.classList.contains(PROMPT_LIST_HEAD_CLASS)) {
+            row.style.order = '0';
+            continue;
+        }
+        if (row.classList.contains(PROMPT_LIST_SEPARATOR_CLASS)) {
+            row.style.order = '1';
+            continue;
+        }
+        const identifier = row.dataset.pmIdentifier;
+        if (!identifier) {
+            continue;
+        }
+        row.style.order = String(2 + (index.get(identifier) ?? order.length));
+    }
+    applyBannerOrder(list, index);
+}
+
+function syncDisplayOrderUi(list) {
+    if (!list) {
+        return;
+    }
+    document.body.classList.toggle('pd-pm-on', getSettings().enabled);
+    if (!isDisplayOrderActive()) {
+        clearDisplayOrder(list);
+        syncSortable(list, true);
+        return;
+    }
+    ensureCurrentScheme(list);
+    applyDisplayOrder(list, currentDisplayOrder(list));
+    syncSortable(list, false);
+}
+
+function ensureCurrentScheme(list) {
+    const presetName = getCurrentPromptPresetName();
+    if (!presetName) {
+        return null;
+    }
+    return ensureDisplayScheme(presetName, readRealOrder(list));
+}
+
+function getOrderDragRows(list) {
+    return Array.from(list.querySelectorAll('li[data-pm-identifier]'))
+        .filter((row) => !row.classList.contains('pd-pm-hidden'));
+}
+
+function findScrollParent(element) {
+    let node = element?.parentElement ?? null;
+    while (node && node !== document.body) {
+        const style = window.getComputedStyle(node);
+        if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) {
+            return node;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+
+function clearOrderPress() {
+    if (orderPressTimer !== null) {
+        window.clearTimeout(orderPressTimer);
+        orderPressTimer = null;
+    }
+    orderPress = null;
+}
+
+function beginOrderDrag(list, row) {
+    const order = currentDisplayOrder(list);
+    if (order.length === 0) {
+        return;
+    }
+    orderDrag = {
+        list,
+        row,
+        order,
+        pointerY: row.getBoundingClientRect().top,
+        scroller: findScrollParent(list),
+    };
+    row.classList.add('pd-pm-order-dragging');
+    list.classList.add('pd-order-sorting');
+    document.body.classList.add('pd-order-dragging');
+    if (orderDragFrame === null) {
+        orderDragFrame = requestAnimationFrame(orderDragStep);
+    }
+}
+
+function orderDragStep() {
+    if (!orderDrag) {
+        orderDragFrame = null;
+        return;
+    }
+    const { scroller, pointerY } = orderDrag;
+    if (scroller) {
+        const rect = scroller.getBoundingClientRect();
+        let delta = 0;
+        if (pointerY < rect.top + ORDER_SCROLL_EDGE) {
+            const ratio = Math.min(1, (rect.top + ORDER_SCROLL_EDGE - pointerY) / ORDER_SCROLL_EDGE);
+            delta = -Math.max(1, Math.round(ratio * ORDER_SCROLL_STEP));
+        } else if (pointerY > rect.bottom - ORDER_SCROLL_EDGE) {
+            const ratio = Math.min(1, (pointerY - (rect.bottom - ORDER_SCROLL_EDGE)) / ORDER_SCROLL_EDGE);
+            delta = Math.max(1, Math.round(ratio * ORDER_SCROLL_STEP));
+        }
+        if (delta !== 0) {
+            scroller.scrollTop += delta;
+            updateOrderDragTarget();
+        }
+    }
+    orderDragFrame = requestAnimationFrame(orderDragStep);
+}
+
+function updateOrderDragTarget() {
+    const state = orderDrag;
+    if (!state) {
+        return;
+    }
+    const dragged = state.row.dataset.pmIdentifier;
+    const rows = getOrderDragRows(state.list).filter((row) => row !== state.row);
+    let targetId = null;
+    for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        if (state.pointerY < rect.top + rect.height / 2) {
+            targetId = row.dataset.pmIdentifier;
+            break;
+        }
+    }
+    const next = state.order.filter((identifier) => identifier !== dragged);
+    const position = targetId ? next.indexOf(targetId) : -1;
+    if (position < 0) {
+        next.push(dragged);
+    } else {
+        next.splice(position, 0, dragged);
+    }
+    if (next.join('|') === state.order.join('|')) {
+        return;
+    }
+    state.order = next;
+    applyDisplayOrder(state.list, next);
+}
+
+function ensureDisplayScheme(presetName, realOrder) {
+    if (!presetName) {
+        return null;
+    }
+    const existing = getActiveScheme(presetName);
+    if (existing) {
+        return existing;
+    }
+    const cfg = getDisplayOrder();
+    const scheme = {
+        id: makeDrawerId(),
+        name: nextDisplaySchemeName(presetName),
+        preset: presetName,
+        order: [...realOrder],
+    };
+    cfg.schemes.push(scheme);
+    cfg.activeByPreset[presetName] = scheme.id;
+    saveSettingsDebounced();
+    return scheme;
+}
+
+function finishOrderDrag(commit) {
+    const state = orderDrag;
+    if (!state) {
+        return;
+    }
+    orderDrag = null;
+    if (orderDragFrame !== null) {
+        cancelAnimationFrame(orderDragFrame);
+        orderDragFrame = null;
+    }
+    state.row.classList.remove('pd-pm-order-dragging');
+    state.list.classList.remove('pd-order-sorting');
+    document.body.classList.remove('pd-order-dragging');
+    if (!commit) {
+        syncDisplayOrderUi(state.list);
+        return;
+    }
+    const scheme = ensureDisplayScheme(getCurrentPromptPresetName(), readRealOrder(state.list));
+    if (!scheme) {
+        syncDisplayOrderUi(state.list);
+        return;
+    }
+    scheme.order = [...state.order];
+    saveSettingsDebounced();
+    applyDisplayOrder(state.list, state.order);
+    renderDisplayOrderSettings();
+}
+
+function bindOrderDragEvents() {
+    orderAbort = new AbortController();
+    const { signal } = orderAbort;
+
+    document.addEventListener('pointerdown', (event) => {
+        if (orderDrag || !isDisplayOrderActive()) {
+            return;
+        }
+        if (event.pointerType === 'mouse' && event.button !== 0) {
+            return;
+        }
+        const list = getPromptList();
+        const target = event.target;
+        if (!list || !(target instanceof Element)) {
+            return;
+        }
+        if (target.closest('.prompt_manager_prompt_controls, .pd-pm-marker, .pd-pm-banner, a, input, textarea, select')) {
+            return;
+        }
+        const row = target.closest('li[data-pm-identifier]');
+        if (!row || !list.contains(row)) {
+            return;
+        }
+        orderPress = {
+            list,
+            row,
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            type: event.pointerType,
+        };
+        if (event.pointerType !== 'touch') {
+            return;
+        }
+        orderPressTimer = window.setTimeout(() => {
+            orderPressTimer = null;
+            const press = orderPress;
+            if (!press) {
+                return;
+            }
+            clearOrderPress();
+            beginOrderDrag(press.list, press.row);
+            if (orderDrag) {
+                orderDrag.pointerY = press.startY;
+                updateOrderDragTarget();
+            }
+        }, ORDER_LONG_PRESS_MS);
+    }, { signal, capture: true });
+
+    document.addEventListener('pointermove', (event) => {
+        if (orderDrag) {
+            event.preventDefault();
+            orderDrag.pointerY = event.clientY;
+            updateOrderDragTarget();
+            return;
+        }
+        if (!orderPress || event.pointerId !== orderPress.pointerId) {
+            return;
+        }
+        const deltaX = Math.abs(event.clientX - orderPress.startX);
+        const deltaY = Math.abs(event.clientY - orderPress.startY);
+        if (orderPress.type === 'touch') {
+            if (deltaX > 10 || deltaY > 10) {
+                clearOrderPress();
+            }
+            return;
+        }
+        if (deltaX < ORDER_DRAG_THRESHOLD && deltaY < ORDER_DRAG_THRESHOLD) {
+            return;
+        }
+        const press = orderPress;
+        clearOrderPress();
+        beginOrderDrag(press.list, press.row);
+        if (orderDrag) {
+            orderDrag.pointerY = event.clientY;
+            updateOrderDragTarget();
+        }
+    }, { signal });
+
+    document.addEventListener('touchmove', (event) => {
+        if (orderDrag) {
+            event.preventDefault();
+        }
+    }, { signal, passive: false });
+
+    document.addEventListener('pointerup', (event) => {
+        if (orderDrag) {
+            orderSuppressClickUntil = Date.now() + 600;
+            finishOrderDrag(true);
+            return;
+        }
+        if (orderPress && event.pointerId === orderPress.pointerId) {
+            clearOrderPress();
+        }
+    }, { signal });
+
+    document.addEventListener('pointercancel', () => {
+        if (orderDrag) {
+            finishOrderDrag(false);
+            return;
+        }
+        clearOrderPress();
+    }, { signal });
+
+    document.addEventListener('click', (event) => {
+        if (Date.now() >= orderSuppressClickUntil) {
+            return;
+        }
+        const list = getPromptList();
+        const target = event.target;
+        if (list && target instanceof Element && list.contains(target)) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }, { signal, capture: true });
+}
+
+function renderDisplayOrderSettings() {
+    const select = document.querySelector('#pd_display_order_scheme');
+    if (!select) {
+        return;
+    }
+    const cfg = getDisplayOrder();
+    const presetName = getCurrentPromptPresetName();
+    const schemes = cfg.schemes.filter((scheme) => scheme.preset === presetName);
+    select.innerHTML = '';
+    if (schemes.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = presetName ? '还没有方案，拖动条目即自动建立' : '先选一个 Chat Completion 预设';
+        select.appendChild(option);
+        select.disabled = true;
+        return;
+    }
+    select.disabled = false;
+    for (const scheme of schemes) {
+        const option = document.createElement('option');
+        option.value = scheme.id;
+        option.textContent = scheme.name;
+        select.appendChild(option);
+    }
+    const active = getActiveScheme(presetName);
+    select.value = active ? active.id : schemes[0].id;
+}
+
+async function createDisplayScheme() {
+    const presetName = getCurrentPromptPresetName();
+    if (!presetName) {
+        toastr.warning('先选一个 Chat Completion 预设');
+        return;
+    }
+    const list = getPromptList();
+    const realOrder = list ? readRealOrder(list) : [];
+    if (realOrder.length === 0) {
+        toastr.warning('读不到条目列表，稍后再试');
+        return;
+    }
+    const name = await Popup.show.input(
+        '新建顺序方案',
+        `为预设「${escapeHtml(presetName)}」新建一套显示顺序，以当前条目顺序为起点。`,
+        nextDisplaySchemeName(presetName),
+    );
+    if (name === null) {
+        return;
+    }
+    const cfg = getDisplayOrder();
+    const scheme = {
+        id: makeDrawerId(),
+        name: name.trim() || nextDisplaySchemeName(presetName),
+        preset: presetName,
+        order: realOrder,
+    };
+    cfg.schemes.push(scheme);
+    cfg.activeByPreset[presetName] = scheme.id;
+    saveSettingsDebounced();
+    renderDisplayOrderSettings();
+    syncDisplayOrderUi(getPromptList());
+}
+
+async function renameDisplayScheme() {
+    const presetName = getCurrentPromptPresetName();
+    const scheme = getActiveScheme(presetName);
+    if (!scheme) {
+        return;
+    }
+    const name = await Popup.show.input('重命名顺序方案', '方案内容不变，只改名字。', scheme.name);
+    if (name === null) {
+        return;
+    }
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === scheme.name) {
+        return;
+    }
+    scheme.name = trimmed;
+    saveSettingsDebounced();
+    renderDisplayOrderSettings();
+}
+
+async function deleteDisplayScheme() {
+    const presetName = getCurrentPromptPresetName();
+    const scheme = getActiveScheme(presetName);
+    if (!scheme) {
+        return;
+    }
+    const confirmed = await Popup.show.confirm(
+        '删除顺序方案',
+        `删除方案「${escapeHtml(scheme.name)}」？条目本身与提示词顺序都不受影响。`,
+    );
+    if (confirmed !== POPUP_RESULT.AFFIRMATIVE) {
+        return;
+    }
+    const cfg = getDisplayOrder();
+    cfg.schemes = cfg.schemes.filter((item) => item.id !== scheme.id);
+    delete cfg.activeByPreset[presetName];
+    saveSettingsDebounced();
+    renderDisplayOrderSettings();
+    syncDisplayOrderUi(getPromptList());
 }
 
 /* ------------------------------------------------------------------ *
@@ -2593,6 +3185,23 @@ function dropAssignment(apiId, presetName) {
     return true;
 }
 
+function migrateDisplaySchemes(fromName, toName) {
+    const cfg = getDisplayOrder();
+    let changed = false;
+    for (const scheme of cfg.schemes) {
+        if (scheme.preset === fromName) {
+            scheme.preset = toName;
+            changed = true;
+        }
+    }
+    if (Object.hasOwn(cfg.activeByPreset, fromName)) {
+        cfg.activeByPreset[toName] = cfg.activeByPreset[fromName];
+        delete cfg.activeByPreset[fromName];
+        changed = true;
+    }
+    return changed;
+}
+
 /* ------------------------------------------------------------------ *
  * 设置面板
  * ------------------------------------------------------------------ */
@@ -2606,11 +3215,20 @@ async function mountSettings() {
         settings.enabled = Boolean($(this).prop('checked'));
         saveSettingsDebounced();
         syncAll();
+        syncDisplayOrderUi(getPromptList());
     });
     $('#pd_custom_picker').prop('checked', settings.useCustomPicker).on('change', function () {
         settings.useCustomPicker = Boolean($(this).prop('checked'));
         saveSettingsDebounced();
         syncAll();
+    });
+    $('#pd_drawers_expanded').prop('checked', settings.drawersExpanded).on('change', function () {
+        settings.drawersExpanded = Boolean($(this).prop('checked'));
+        saveSettingsDebounced();
+        if (openApiId) {
+            resetDrawerFolds(openApiId);
+            renderPanel();
+        }
     });
     $('#pd_prompt_groups_enabled').prop('checked', settings.promptGroupsEnabled).on('change', function () {
         settings.promptGroupsEnabled = Boolean($(this).prop('checked'));
@@ -2620,6 +3238,26 @@ async function mountSettings() {
     $('#pd_backup_enabled').prop('checked', settings.backupBeforeSave).on('change', function () {
         settings.backupBeforeSave = Boolean($(this).prop('checked'));
         saveSettingsDebounced();
+    });
+
+    $('#pd_display_order_enabled').prop('checked', settings.displayOrder.enabled).on('change', function () {
+        settings.displayOrder.enabled = Boolean($(this).prop('checked'));
+        saveSettingsDebounced();
+        syncDisplayOrderUi(getPromptList());
+        renderDisplayOrderSettings();
+    });
+    $('#pd_display_order_add').on('click', () => { void createDisplayScheme(); });
+    $('#pd_display_order_rename').on('click', () => { void renameDisplayScheme(); });
+    $('#pd_display_order_remove').on('click', () => { void deleteDisplayScheme(); });
+    $('#pd_display_order_scheme').on('change', function () {
+        const presetName = getCurrentPromptPresetName();
+        const value = String($(this).val() ?? '');
+        if (!presetName || !value) {
+            return;
+        }
+        getDisplayOrder().activeByPreset[presetName] = value;
+        saveSettingsDebounced();
+        syncDisplayOrderUi(getPromptList());
     });
 
     $('#pd_open_manager').on('click', () => {
@@ -2642,6 +3280,7 @@ async function mountSettings() {
 
     mountPromptGroups();
     renderBackupList();
+    renderDisplayOrderSettings();
 }
 
 /* ------------------------------------------------------------------ *
@@ -2655,11 +3294,13 @@ export async function init() {
     bindSelectEvents();
     observeSelects();
     observePromptManager();
+    bindOrderDragEvents();
     syncPromptGroups();
 
     eventSource.on(eventTypes.PRESET_RENAMED, onPresetRenamed);
     eventSource.on(eventTypes.PRESET_DELETED, onPresetDeleted);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
+    eventSource.on(eventTypes.OAI_PRESET_CHANGED_AFTER, onPromptPresetChanged);
 
     console.log(`${TAG} ready`);
 }
@@ -2672,6 +3313,11 @@ function onPresetRenamed(payload) {
     if (migrateAssignment(apiId, oldName, newName)) {
         saveSettingsDebounced();
         scheduleRender();
+    }
+    if (apiId === PROMPT_PRESET_API && migrateDisplaySchemes(oldName, newName)) {
+        saveSettingsDebounced();
+        renderDisplayOrderSettings();
+        schedulePromptSync();
     }
 }
 
@@ -2688,6 +3334,11 @@ function onPresetDeleted(payload) {
 
 function onChatChanged() {
     scheduleRender();
+}
+
+function onPromptPresetChanged() {
+    renderDisplayOrderSettings();
+    schedulePromptSync();
 }
 
 export function onDisable() {
@@ -2714,8 +3365,20 @@ export function onDisable() {
     const promptList = promptContainer?.querySelector(`#${PROMPT_LIST_ID}`);
     if (promptList) {
         removePromptInjections(promptList);
+        clearDisplayOrder(promptList);
+        syncSortable(promptList, true);
     }
     document.body.classList.remove('pd-pm-legacy-rows');
+    orderAbort?.abort();
+    orderAbort = null;
+    clearOrderPress();
+    if (orderDragFrame !== null) {
+        cancelAnimationFrame(orderDragFrame);
+        orderDragFrame = null;
+    }
+    orderDrag = null;
+    document.body.classList.remove('pd-order-dragging');
+    document.body.classList.remove('pd-pm-on');
     groupMenuAbort?.abort();
     groupMenuAbort = null;
     groupMenuEl?.remove();
@@ -2725,6 +3388,7 @@ export function onDisable() {
     eventSource.removeListener(eventTypes.PRESET_RENAMED, onPresetRenamed);
     eventSource.removeListener(eventTypes.PRESET_DELETED, onPresetDeleted);
     eventSource.removeListener(eventTypes.CHAT_CHANGED, onChatChanged);
+    eventSource.removeListener(eventTypes.OAI_PRESET_CHANGED_AFTER, onPromptPresetChanged);
 
     destroyTriggerSelect();
     entryEditorEl?.remove();

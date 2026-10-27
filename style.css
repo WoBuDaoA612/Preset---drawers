@@ -424,6 +424,57 @@ body.pd-pm-legacy-rows #completion_prompt_manager #completion_prompt_manager_lis
     user-select: none;
 }
 
+#completion_prompt_manager #completion_prompt_manager_list.pd-order-on li.completion_prompt_manager_prompt {
+    cursor: grab;
+    -webkit-touch-callout: none;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list.pd-order-on li.completion_prompt_manager_prompt .drag-handle {
+    touch-action: none;
+    -webkit-touch-callout: none;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list li.pd-pm-order-dragging {
+    opacity: 0.45;
+}
+
+#completion_prompt_manager #completion_prompt_manager_list.pd-order-sorting {
+    user-select: none;
+}
+
+body.pd-order-dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+body.pd-order-dragging #completion_prompt_manager #completion_prompt_manager_list li.completion_prompt_manager_prompt {
+    cursor: grabbing;
+}
+
+body.pd-order-force-flex #completion_prompt_manager #completion_prompt_manager_list.pd-order-on {
+    display: flex;
+    flex-direction: column;
+}
+
+body.pd-pm-on #completion_prompt_manager #completion_prompt_manager_list::after {
+    order: -1;
+    content: "原生顺序 · 拖动条目会改变提示词顺序";
+    margin-bottom: 6px;
+    padding: 5px 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    font-size: 0.95em;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--SmartThemeQuoteColor);
+}
+
+body.pd-pm-on #completion_prompt_manager #completion_prompt_manager_list.pd-order-on::after {
+    content: "替代原生列表 · 拖动条目即可调整显示顺序";
+    border-color: var(--SmartThemeQuoteColor);
+}
+
 .pd-pm-menu {
     position: absolute;
     z-index: 100001;
